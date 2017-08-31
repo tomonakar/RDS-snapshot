@@ -12,7 +12,7 @@ const toDoubleDigits = function(num) {
   if (num.length === 1) {
     num = "0" + num;
   }
- return num;     
+return num;     
 };
 
 // 時刻を取得
@@ -30,13 +30,13 @@ exports.handler = (event, context, callback) => {
     const generator  = (function *() {
 
         try {
-            // スナップショットを取得する対象のRDSのインスタンスIDを環境変数から取得
+            // スナップショットを取得する対象のRDSのインスタンスIDを取得
             const dbId = process.env.dbId;
 
-            // スナップショットに付与する名前のプレフィックスを環境変数から取得
+            // スナップショットに付与する名前のプレフィックスを取得
             const prefix = process.env.prefix;
             
-            // バックアップ保持世代数を環境変数から取得
+            // バックアップ保持世代数
             const retention = process.env.ENV_RETENTION;
 
             // スナップショットを作成
@@ -47,7 +47,7 @@ exports.handler = (event, context, callback) => {
 
             // snapshotの数が保持世代数を超えたら削除
             if(snapshotsList.length > retention ) {
-                yield deleteDBSnapshot(snapshotsList[snapshotsList.length-1].DBSnapshotIdentifier, generator);
+                yield deleteDBSnapshot(snapshotsList[0].DBSnapshotIdentifier, generator);
             }
             
             callback(null, 'success');
@@ -98,19 +98,28 @@ function describeDBSnapshots(dbId, generator) {
        console.log('successful describe DBsnapshot');
 
        const snapshotsList = data.DBSnapshots;
-       // 降順にならびかえ
-       snapshotsList.sort(function(a,b){
-           let createDateA = new Date(a.StartTime);
-           let createDateB = new Date(b.StartTime);
+       console.log(snapshotsList);
+       // 昇順にならびかえ
+      snapshotsList.sort(function(a,b){
+           let createDateA = new Date(a.SnapshotCreateTime);
+           let createDateB = new Date(b.SnapshotCreateTime);
 
-           if(createDateA.getTime() > createDateB.getTime()) {
+        　 if(createDateA.getTime() > createDateB.getTime()) {
+               return 1;
+           } 
+           if(createDateA.getTime() < createDateB.getTime()) {
                return -1;
            }
-           if(createDateA.getTime() < createDateB.getTime()) {
+            if(createDateA.getTime() === null || isNaN(createDateA.getTime())) {
                return 1;
+           }
+            if(createDateB.getTime() === null || isNaN(createDateB.getTime())) {
+               return -1;
            }
            return 0;
        });
+       console.log(snapshotsList);
+       console.log('snapshotList.length : ' + snapshotsList.length);
        generator.next(snapshotsList);
     });
 }
@@ -125,10 +134,11 @@ function deleteDBSnapshot(dbSnapshotIdentifier, generator) {
     rds.deleteDBSnapshot(params, function(err, data) {
         if (err) {
             console.log(err, err.stack);
-            generator.throw(new Error('delete dbsnapshot error : ' + params.deleteDBSnapshot));
+            generator.throw(new Error('delete dbsnapshot error : ' + params.DBSnapshotIdentifier));
             return;
        }
-       console.log('successful delete dbsnapshot : ' + params.deleteDBSnapshot);
+       console.log('successful delete dbsnapshot : ' + params.DBSnapshotIdentifier);
        generator.next();
     });
 }
+
